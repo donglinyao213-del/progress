@@ -5,7 +5,20 @@ import uuid
 import asyncio
 from processor import fake_stage, TOTAL_PAGES
 import time
+import copy
+from loguru import logger
+import sys
+logger.add("./logs/file_{time}.log", rotation="500 MB")
+# logger.add("file.log", rotation="00:00")  # 每天午夜轮转
+# logger.add("file.log", retention="10 days")  # 保留10天的日志
+logger.add(sys.stderr, format="{time} {level} {message}", level="INFO")
+# logger.add("file.log", level="DEBUG")  # 文件记录DEBUG及以上级别
+# logger.add(sys.stderr, level="INFO")   # 控制台只显示INFO及以上级别
 
+# try:
+#     1 / 0
+# except ZeroDivisionError:
+#     logger.exception("发生了除零错误")
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -45,25 +58,34 @@ async def pipeline(uid: str):
     stages = ["MFD", "MFR", "TableRec", "OCR"]
     for idx, stage in enumerate(stages, 1): 
         progress_map[uid]["stage"] = stage
-        start_time = 0
-        cur_speed = 0
-        pred_total_time = 0
-        start_time = time.time()
         time_stack = []
+        time_stack1 = []
         async for done in fake_stage(stage):
             percent = int(done / TOTAL_PAGES * 100)
             progress_map[uid]["page"] = done
             time_stack.append(time.time())  # pages个time
-            if done >= 2:
-                cur_speed = round((time_stack[:done])/len(time_stack[:done]),2)
+            time_stack1.append(time.time())
+            if done != 1:
+                time_stack[done-1] = round(time_stack[done-1]-time_stack1[done-2],2)
+                if done ==2:
+                    time_stack[0] = time_stack[1]  # 将第一页的时间初始化位第二页的时间
+                cur_speed = round(sum(time_stack[:done-1])/len(time_stack[:done-1]),2)
+                # logger.debug(f"time_stack:{time_stack}")
+                # logger.debug(f"cur_speed:{cur_speed}")
                 pred_total_time = cur_speed*TOTAL_PAGES
-            
+                # 每 1 % 推送一次
+                if percent % 1 == 0:
+                    progress_map[uid]["percent"] = percent
+                    await asyncio.sleep(0)  # 让 SSE 读最新值
+                    progress_map[uid]["current_speed"] = cur_speed
+                    await asyncio.sleep(0)  # 让 SSE 读最新值
+                    progress_map[uid]["predict_completed_time"] = pred_total_time
+                    await asyncio.sleep(0)  # 让 SSE 读最新值
             # 每 1 % 推送一次
             if percent % 1 == 0:
                 progress_map[uid]["percent"] = percent
-                progress_map[uid]["current_speed"] = cur_speed
-                progress_map[uid]["predict_completed_time"] = pred_total_time
                 await asyncio.sleep(0)  # 让 SSE 读最新值
+            
         # 阶段完成
         progress_map[uid]["percent"] = 100
         # 延迟0.2秒确保前端能平滑显示完成动画，可能需要根据实际场景调整
@@ -77,7 +99,7 @@ async def sse_progress(uid: str):
 
     async def event_generator():
         while True:
-            prog = progress_map.get(uid, {"page":1, "stage": "unknown", "percent": 0,"current_speed":1,"predict_completed_time":3})
+            prog = progress_map.get(uid, {"page":1, "stage": "prepare", "percent": 0,"current_speed":1,"predict_completed_time":3})
             yield f"data: {json.dumps(prog)}\n\n"
             if prog.get("stage") == "done":
                 yield f"event: close\ndata: \n\n"

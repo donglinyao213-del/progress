@@ -197,6 +197,15 @@
       justify-content: space-between;
       color: var(--gray);
       font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .progress-stats {
+      display: flex;
+      justify-content: space-between;
+      color: var(--gray);
+      font-size: 14px;
+      margin-bottom: 5px;
     }
 
     .status-indicator {
@@ -284,6 +293,11 @@
       .button-group {
         flex-direction: column;
       }
+      
+      .progress-info, .progress-stats {
+        flex-direction: column;
+        gap: 5px;
+      }
     }
   </style>
 </head>
@@ -324,6 +338,10 @@
         <div class="progress-info">
           <span>页面: <span id="currentPage">-</span></span>
           <span>阶段: <span id="currentStage">-</span></span>
+        </div>
+        <div class="progress-stats">
+          <span>处理速度: <span id="currentSpeed">-</span> 页/秒</span>
+          <span>预计完成: <span id="predictTime">-</span></span>
         </div>
         <div class="status-indicator">
           <div class="status-dot" id="statusDot"></div>
@@ -372,11 +390,13 @@
 
         const source = new EventSource(`/progress/${uid}`);
         source.onmessage = e => {
-          const { page, stage, percent } = JSON.parse(e.data);
+          const { page, stage, percent, current_speed, predict_completed_time } = JSON.parse(e.data);
           document.getElementById('bar').style.width = percent + '%';
           document.getElementById('progressPercent').textContent = percent + '%';
           document.getElementById('currentPage').textContent = page;
           document.getElementById('currentStage').textContent = stage;
+          document.getElementById('currentSpeed').textContent = current_speed || '-';
+          document.getElementById('predictTime').textContent = formatTime(predict_completed_time) || '-';
           document.getElementById('statusText').textContent = `正在处理: 第${page}页 - ${stage}阶段`;
           document.getElementById('stageTitle').textContent = `${stage}阶段`;
           document.getElementById('stageDesc').textContent = `正在处理第${page}页`;
@@ -397,6 +417,19 @@
         document.getElementById('uploadBtn').disabled = false;
         document.getElementById('uploadText').textContent = '重新上传';
         document.getElementById('uploadSpinner').style.display = 'none';
+      }
+    }
+
+    // 格式化时间显示（秒转为分秒）
+    function formatTime(seconds) {
+      if (!seconds || seconds <= 0) return '-';
+      
+      if (seconds < 60) {
+        return `${seconds}秒`;
+      } else {
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `${minutes}分${remainingSeconds}秒`;
       }
     }
 
@@ -428,6 +461,8 @@
       document.getElementById('bar').style.width = '0%';
       document.getElementById('progressPercent').textContent = '0%';
       document.getElementById('statusDot').classList.remove('active');
+      document.getElementById('currentSpeed').textContent = '-';
+      document.getElementById('predictTime').textContent = '-';
     }
 
     // 文件选择和拖放功能
