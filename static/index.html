@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF 处理进度追踪</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --primary: #4361ee;
+      --primary-light: #4895ef;
+      --secondary: #3a0ca3;
+      --success: #4cc9f0;
+      --warning: #f72585;
+      --light: #f8f9fa;
+      --dark: #212529;
+      --gray: #6c757d;
+      --border-radius: 12px;
+      --box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+      --transition: all 0.3s ease;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 600px;
+      width: 100%;
+    }
+
+    .card {
+      background: white;
+      border-radius: var(--border-radius);
+      box-shadow: var(--box-shadow);
+      padding: 30px;
+      margin-bottom: 20px;
+      transition: var(--transition);
+    }
+
+    .card:hover {
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+    }
+
+    h1 {
+      color: var(--secondary);
+      text-align: center;
+      margin-bottom: 10px;
+      font-weight: 700;
+      font-size: 28px;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: var(--gray);
+      margin-bottom: 30px;
+      font-size: 16px;
+    }
+
+    .upload-area {
+      border: 2px dashed #d1d5db;
+      border-radius: var(--border-radius);
+      padding: 30px;
+      text-align: center;
+      margin-bottom: 25px;
+      cursor: pointer;
+      transition: var(--transition);
+      background-color: #f9fafb;
+    }
+
+    .upload-area:hover {
+      border-color: var(--primary);
+      background-color: #f0f4ff;
+    }
+
+    .upload-area.active {
+      border-color: var(--primary);
+      background-color: #e8f2ff;
+    }
+
+    .upload-icon {
+      font-size: 48px;
+      color: var(--primary);
+      margin-bottom: 15px;
+    }
+
+    .upload-text {
+      color: var(--gray);
+      margin-bottom: 15px;
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    .file-name {
+      margin-top: 10px;
+      font-weight: 500;
+      color: var(--primary);
+    }
+
+    .button-group {
+      display: flex;
+      gap: 15px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 12px 20px;
+      border: none;
+      border-radius: var(--border-radius);
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(to right, var(--primary), var(--primary-light));
+      color: white;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(67, 97, 238, 0.4);
+    }
+
+    .btn-secondary {
+      background-color: #e9ecef;
+      color: var(--dark);
+    }
+
+    .btn-secondary:hover {
+      background-color: #dee2e6;
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .progress-section {
+      margin-top: 30px;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .progress-title {
+      font-weight: 600;
+      color: var(--dark);
+    }
+
+    .progress-percent {
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .progress-container {
+      height: 12px;
+      background-color: #e9ecef;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 15px;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(to right, var(--primary), var(--success));
+      border-radius: 10px;
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+
+    .progress-info {
+      display: flex;
+      justify-content: space-between;
+      color: var(--gray);
+      font-size: 14px;
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 5px;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background-color: var(--gray);
+    }
+
+    .status-dot.active {
+      background-color: var(--success);
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(76, 201, 240, 0.7);
+      }
+      70% {
+        box-shadow: 0 0 0 10px rgba(76, 201, 240, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(76, 201, 240, 0);
+      }
+    }
+
+    .stage-info {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #f8f9fa;
+      border-radius: var(--border-radius);
+      border-left: 4px solid var(--primary);
+    }
+
+    .stage-title {
+      font-weight: 600;
+      margin-bottom: 5px;
+      color: var(--dark);
+    }
+
+    .stage-desc {
+      color: var(--gray);
+      font-size: 14px;
+    }
+
+    .completed-message {
+      text-align: center;
+      padding: 15px;
+      background-color: #e8f5e9;
+      border-radius: var(--border-radius);
+      margin-top: 20px;
+      color: #2e7d32;
+      font-weight: 500;
+      display: none;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @media (max-width: 576px) {
+      .card {
+        padding: 20px;
+      }
+      
+      .button-group {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>PDF 处理进度追踪</h1>
+      <p class="subtitle">上传您的PDF文件并实时查看处理进度</p>
+      
+      <div class="upload-area" id="uploadArea">
+        <div class="upload-icon">
+          <i class="fas fa-file-pdf"></i>
+        </div>
+        <p class="upload-text">点击或拖放PDF文件到此处</p>
+        <p class="file-name" id="fileName">未选择文件</p>
+        <input type="file" id="fileInput" class="file-input" accept=".pdf">
+      </div>
+      
+      <div class="button-group">
+        <button class="btn btn-primary" id="uploadBtn" onclick="upload()" disabled>
+          <span class="spinner" style="display:none;" id="uploadSpinner"></span>
+          <span id="uploadText">上传文件</span>
+        </button>
+        <button class="btn btn-secondary" onclick="reset()">
+          <i class="fas fa-redo"></i>
+          重置
+        </button>
+      </div>
+      
+      <div class="progress-section" id="progressSection" style="display: none;">
+        <div class="progress-header">
+          <span class="progress-title">处理进度</span>
+          <span class="progress-percent" id="progressPercent">0%</span>
+        </div>
+        <div class="progress-container">
+          <div class="progress-bar" id="bar"></div>
+        </div>
+        <div class="progress-info">
+          <span>页面: <span id="currentPage">-</span></span>
+          <span>阶段: <span id="currentStage">-</span></span>
+        </div>
+        <div class="status-indicator">
+          <div class="status-dot" id="statusDot"></div>
+          <span id="statusText">等待处理...</span>
+        </div>
+        
+        <div class="stage-info">
+          <div class="stage-title" id="stageTitle">准备处理</div>
+          <div class="stage-desc" id="stageDesc">上传完成后将开始处理您的PDF文件</div>
+        </div>
+        
+        <div class="completed-message" id="completedMessage">
+          <i class="fas fa-check-circle"></i> 处理完成！您的PDF已成功处理。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 文件上传和进度追踪逻辑
+    async function upload() {
+      const file = document.getElementById('fileInput').files[0];
+      if (!file) return alert('请先选择文件');
+
+      // UI状态更新
+      document.getElementById('uploadBtn').disabled = true;
+      document.getElementById('uploadText').textContent = '上传中...';
+      document.getElementById('uploadSpinner').style.display = 'inline-block';
+      document.getElementById('progressSection').style.display = 'block';
+      document.getElementById('statusDot').classList.add('active');
+      document.getElementById('statusText').textContent = '正在上传文件...';
+      document.getElementById('stageTitle').textContent = '上传文件';
+      document.getElementById('stageDesc').textContent = '正在将您的PDF文件上传到服务器';
+
+      const fd = new FormData();
+      fd.append('file', file);
+
+      try {
+        // 模拟上传过程
+        await simulateUpload();
+        
+        const { uid } = await fetch('/upload', { method: 'POST', body: fd }).then(r => r.json());
+        document.getElementById('statusText').textContent = `任务 ${uid} 已创建，等待处理...`;
+        document.getElementById('stageTitle').textContent = '任务已创建';
+        document.getElementById('stageDesc').textContent = `任务ID: ${uid}`;
+
+        const source = new EventSource(`/progress/${uid}`);
+        source.onmessage = e => {
+          const { page, stage, percent } = JSON.parse(e.data);
+          document.getElementById('bar').style.width = percent + '%';
+          document.getElementById('progressPercent').textContent = percent + '%';
+          document.getElementById('currentPage').textContent = page;
+          document.getElementById('currentStage').textContent = stage;
+          document.getElementById('statusText').textContent = `正在处理: 第${page}页 - ${stage}阶段`;
+          document.getElementById('stageTitle').textContent = `${stage}阶段`;
+          document.getElementById('stageDesc').textContent = `正在处理第${page}页`;
+        };
+        
+        source.addEventListener('close', () => {
+          source.close();
+          document.getElementById('statusText').textContent = '处理完成';
+          document.getElementById('stageTitle').textContent = '任务完成';
+          document.getElementById('stageDesc').textContent = '您的PDF文件已成功处理完毕';
+          document.getElementById('completedMessage').style.display = 'block';
+          document.getElementById('statusDot').classList.remove('active');
+        });
+        
+      } catch (error) {
+        alert('上传失败: ' + error.message);
+      } finally {
+        document.getElementById('uploadBtn').disabled = false;
+        document.getElementById('uploadText').textContent = '重新上传';
+        document.getElementById('uploadSpinner').style.display = 'none';
+      }
+    }
+
+    // 模拟上传过程
+    async function simulateUpload() {
+      return new Promise(resolve => {
+        let progress = 0;
+        const interval = setInterval(() => {
+          progress += 5;
+          document.getElementById('bar').style.width = `${progress}%`;
+          document.getElementById('progressPercent').textContent = `${progress}%`;
+          
+          if (progress >= 100) {
+            clearInterval(interval);
+            setTimeout(resolve, 500);
+          }
+        }, 100);
+      });
+    }
+
+    // 重置表单
+    function reset() {
+      document.getElementById('fileInput').value = '';
+      document.getElementById('fileName').textContent = '未选择文件';
+      document.getElementById('uploadBtn').disabled = true;
+      document.getElementById('uploadText').textContent = '上传文件';
+      document.getElementById('progressSection').style.display = 'none';
+      document.getElementById('completedMessage').style.display = 'none';
+      document.getElementById('bar').style.width = '0%';
+      document.getElementById('progressPercent').textContent = '0%';
+      document.getElementById('statusDot').classList.remove('active');
+    }
+
+    // 文件选择和拖放功能
+    const fileInput = document.getElementById('fileInput');
+    const uploadArea = document.getElementById('uploadArea');
+    const fileName = document.getElementById('fileName');
+    const uploadBtn = document.getElementById('uploadBtn');
+
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('active');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('active');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('active');
+      
+      if (e.dataTransfer.files.length) {
+        fileInput.files = e.dataTransfer.files;
+        updateFileName();
+      }
+    });
+
+    uploadArea.addEventListener('click', () => {
+      fileInput.click();
+    });
+
+    fileInput.addEventListener('change', updateFileName);
+
+    function updateFileName() {
+      if (fileInput.files.length) {
+        fileName.textContent = fileInput.files[0].name;
+        uploadBtn.disabled = false;
+      } else {
+        fileName.textContent = '未选择文件';
+        uploadBtn.disabled = true;
+      }
+    }
+  </script>
+</body>
+</html>

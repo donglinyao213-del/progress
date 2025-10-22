@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>PDF 处理进度条</title>
+  <style>
+    body { font-family: Arial; margin: 40px; }
+    #progress { width: 100%; background: #eee; height: 30px; border-radius: 4px; }
+    #bar { height: 100%; background: #4caf50; width: 0%; transition: width .3s; }
+    #info { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h3>上传 PDF 查看实时进度</h3>
+  <input type="file" id="fileInput" accept=".pdf"/>
+  <button onclick="upload()">上传</button>
+
+  <div id="progress" style="margin-top:20px"><div id="bar"></div></div>
+  <div id="info">等待上传...</div>
+
+  <script>
+    async function upload() {
+      const file = document.getElementById('fileInput').files[0];
+      if (!file) return alert('请先选择文件');
+
+      const fd = new FormData();
+      fd.append('file', file);
+
+      const { uid } = await fetch('/upload', { method: 'POST', body: fd }).then(r => r.json());
+      document.getElementById('info').innerText = `任务 ${uid} 已创建，等待处理...`;
+
+      const source = new EventSource(`/progress/${uid}`);
+      source.onmessage = e => {
+        const { page, stage, percent } = JSON.parse(e.data);
+        document.getElementById('bar').style.width = percent + '%';
+        document.getElementById('info').innerText = `page:${page}  stage:${stage}  ${percent}%`;
+      };
+      source.addEventListener('close', () => {
+        source.close();
+        document.getElementById('info').innerText += '  ✅ 全部完成';
+      });
+    }
+  </script>
+</body>
+</html>
