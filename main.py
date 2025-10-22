@@ -5,20 +5,11 @@ import uuid
 import asyncio
 from processor import fake_stage, TOTAL_PAGES
 import time
-import copy
 from loguru import logger
 import sys
 logger.add("./logs/file_{time}.log", rotation="500 MB")
-# logger.add("file.log", rotation="00:00")  # 每天午夜轮转
-# logger.add("file.log", retention="10 days")  # 保留10天的日志
 logger.add(sys.stderr, format="{time} {level} {message}", level="INFO")
-# logger.add("file.log", level="DEBUG")  # 文件记录DEBUG及以上级别
-# logger.add(sys.stderr, level="INFO")   # 控制台只显示INFO及以上级别
 
-# try:
-#     1 / 0
-# except ZeroDivisionError:
-#     logger.exception("发生了除零错误")
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
