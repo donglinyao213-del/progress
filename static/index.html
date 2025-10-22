@@ -285,6 +285,40 @@
       }
     }
 
+    .total-progress-container {
+      margin-top: 25px;
+      padding-top: 15px;
+      border-top: 1px solid #e9ecef;
+    }
+
+    .total-progress-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .total-progress-title {
+      font-weight: 600;
+      color: var(--dark);
+    }
+
+    .total-progress-percent {
+      font-weight: 700;
+      color: var(--warning);
+    }
+
+    .total-progress-container .progress-container {
+      margin-bottom: 8px;
+    }
+
+    .total-progress-bar {
+      height: 100%;
+      background: linear-gradient(to right, var(--warning), #ff9e7d);
+      border-radius: 10px;
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+
     @media (max-width: 576px) {
       .card {
         padding: 20px;
@@ -329,7 +363,7 @@
       
       <div class="progress-section" id="progressSection" style="display: none;">
         <div class="progress-header">
-          <span class="progress-title">处理进度</span>
+          <span class="progress-title">当前阶段进度</span>
           <span class="progress-percent" id="progressPercent">0%</span>
         </div>
         <div class="progress-container">
@@ -351,6 +385,17 @@
         <div class="stage-info">
           <div class="stage-title" id="stageTitle">准备处理</div>
           <div class="stage-desc" id="stageDesc">上传完成后将开始处理您的PDF文件</div>
+        </div>
+        
+        <!-- 新增整体进度显示 -->
+        <div class="total-progress-container">
+          <div class="total-progress-header">
+            <span class="total-progress-title">整体处理进度</span>
+            <span class="total-progress-percent" id="totalProgressPercent">0%</span>
+          </div>
+          <div class="progress-container">
+            <div class="total-progress-bar" id="bar-total"></div>
+          </div>
         </div>
         
         <div class="completed-message" id="completedMessage">
@@ -376,6 +421,7 @@
       document.getElementById('stageTitle').textContent = '上传文件';
       document.getElementById('stageDesc').textContent = '正在将您的PDF文件上传到服务器';
 
+      
       const fd = new FormData();
       fd.append('file', file);
 
@@ -390,7 +436,9 @@
 
         const source = new EventSource(`/progress/${uid}`);
         source.onmessage = e => {
-          const { page, stage, percent, current_speed, predict_completed_time } = JSON.parse(e.data);
+          const { page, stage, percent, current_speed, predict_completed_time, percent_total } = JSON.parse(e.data);
+          
+          // 更新当前阶段进度
           document.getElementById('bar').style.width = percent + '%';
           document.getElementById('progressPercent').textContent = percent + '%';
           document.getElementById('currentPage').textContent = page;
@@ -400,6 +448,10 @@
           document.getElementById('statusText').textContent = `正在处理: 第${page}页 - ${stage}阶段`;
           document.getElementById('stageTitle').textContent = `${stage}阶段`;
           document.getElementById('stageDesc').textContent = `正在处理第${page}页`;
+          
+          // 更新整体进度
+          document.getElementById('bar-total').style.width = percent_total + '%';
+          document.getElementById('totalProgressPercent').textContent = percent_total + '%';
         };
         
         source.addEventListener('close', () => {
@@ -409,6 +461,10 @@
           document.getElementById('stageDesc').textContent = '您的PDF文件已成功处理完毕';
           document.getElementById('completedMessage').style.display = 'block';
           document.getElementById('statusDot').classList.remove('active');
+          
+          // 确保整体进度显示100%
+          document.getElementById('bar-total').style.width = '100%';
+          document.getElementById('totalProgressPercent').textContent = '100%';
         });
         
       } catch (error) {
@@ -460,6 +516,8 @@
       document.getElementById('completedMessage').style.display = 'none';
       document.getElementById('bar').style.width = '0%';
       document.getElementById('progressPercent').textContent = '0%';
+      document.getElementById('bar-total').style.width = '0%';
+      document.getElementById('totalProgressPercent').textContent = '0%';
       document.getElementById('statusDot').classList.remove('active');
       document.getElementById('currentSpeed').textContent = '-';
       document.getElementById('predictTime').textContent = '-';

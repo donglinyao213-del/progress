@@ -39,7 +39,7 @@ async def index():
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
     uid = uuid.uuid4().hex  # 生成任务id
-    progress_map[uid] = {"page":1,"stage": "idle", "percent": 0,"current_speed":1,"predict_completed_time":3}  # 空闲 百分比为0
+    progress_map[uid] = {"page":1,"stage": "idle", "percent": 0,"current_speed":1,"predict_completed_time":3,"percent_total":0}  # 空闲 百分比为0
     # 后台启动管道
     asyncio.create_task(pipeline(uid))
     return {"uid": uid}
@@ -56,6 +56,7 @@ async def pipeline(uid: str):
         None
     """
     stages = ["MFD", "MFR", "TableRec", "OCR"]
+    percent_total_ = 0
     for idx, stage in enumerate(stages, 1): 
         progress_map[uid]["stage"] = stage
         time_stack = []
@@ -72,10 +73,14 @@ async def pipeline(uid: str):
                 cur_speed = round(sum(time_stack[:done-1])/len(time_stack[:done-1]),2)
                 # logger.debug(f"time_stack:{time_stack}")
                 # logger.debug(f"cur_speed:{cur_speed}")
-                pred_total_time = cur_speed*TOTAL_PAGES
+                pred_total_time = round(cur_speed*TOTAL_PAGES*len(stages),2)
                 # 每 1 % 推送一次
                 if percent % 1 == 0:
                     progress_map[uid]["percent"] = percent
+                    if percent==100:
+                        percent_total_ = percent_total_+100/len(stages)
+                        progress_map[uid]["percent_total"] = percent_total_
+                        logger.debug(f"percent_total:{percent_total_}%")
                     await asyncio.sleep(0)  # 让 SSE 读最新值
                     progress_map[uid]["current_speed"] = cur_speed
                     await asyncio.sleep(0)  # 让 SSE 读最新值
@@ -99,7 +104,7 @@ async def sse_progress(uid: str):
 
     async def event_generator():
         while True:
-            prog = progress_map.get(uid, {"page":1, "stage": "prepare", "percent": 0,"current_speed":1,"predict_completed_time":3})
+            prog = progress_map.get(uid, {"page":1, "stage": "prepare", "percent": 0,"current_speed":1,"predict_completed_time":3,"percent_total":0})
             yield f"data: {json.dumps(prog)}\n\n"
             if prog.get("stage") == "done":
                 yield f"event: close\ndata: \n\n"
